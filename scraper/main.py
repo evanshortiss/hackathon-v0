@@ -43,14 +43,14 @@ def replace_file_contents(repo_path, file_contents_map):
             file.write(new_content)
 
 
-def find_component_usages(repo_path: str, component_names: List[str]) -> Dict[str, List[str]]:
+def find_component_usages(repo_path: str, component_names: List[str]) -> Dict[str, Dict[str, str]]:
     """
     Search for component usage throughout the repo.
     :param repo_path: The repository's local path.
     :param component_names: A list of component names to search for without the .tsx extension.
-    :return: A dictionary where keys are component filenames and values are lists of files where the component is used.
+    :return: A dictionary where keys are component filenames and values are dictionaries containing the file path and contents where the component is used.
     """
-    usage_dict = {name: [] for name in component_names}
+    usage_dict = {name: {} for name in component_names}
     for root, dirs, files in os.walk(repo_path):
         for file in files:
             if file.endswith('.tsx'):
@@ -61,7 +61,7 @@ def find_component_usages(repo_path: str, component_names: List[str]) -> Dict[st
                         # Match component usage by checking for the component name without the .tsx extension
                         search_str = f'/components/{os.path.splitext(component)[0]}'  # Adjust based on how components are referenced in your project
                         if search_str in content:
-                            usage_dict[component].append(file_path[len(repo_path):])  # Store relative path
+                            usage_dict[component][file_path] = content
     return usage_dict
 
 def clone_repository(repo_path: str, tmp_dir: str):
@@ -228,18 +228,18 @@ def main():
         cur = generate_code(filepath, content, file_usages[filepath])
         results.append(cur)
         # get seed.sql from cur and execute the sql
-        seed_sql = cur.get('seed.sql')
-        if seed_sql:
-            connection_string = os.getenv('DATABASE_URL')
-            connection = psycopg2.connect(connection_string)
+        # seed_sql = cur.get('seed.sql')
+        # if seed_sql:
+        #     connection_string = os.getenv('DATABASE_URL')
+        #     connection = psycopg2.connect(connection_string)
 
-            cursor = connection.cursor()
-            cursor.execute(seed_sql)
-            connection.commit()
+        #     cursor = connection.cursor()
+        #     cursor.execute(seed_sql)
+        #     connection.commit()
 
-            cursor.close()
-            connection.close()
-            print(f'Executing SQL for {filepath}')
+        #     cursor.close()
+        #     connection.close()
+        #     print(f'Executing SQL for {filepath}')
 
         for path, value in cur.items():
             if path != 'seed.sql':

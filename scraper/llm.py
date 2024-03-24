@@ -76,6 +76,10 @@ prompt4 = ChatPromptTemplate.from_messages([
 prompt5 = ChatPromptTemplate.from_messages([
     ("system", reference_refactor_system_prompt),
     ("user", """
+        path
+        -----------------------
+        {path}
+     
         api-path
         -----------------------
         {api_path}
@@ -84,9 +88,9 @@ prompt5 = ChatPromptTemplate.from_messages([
         -----------------------
         {component}
      
-        top-level component
+        top-level component ({reference_file})
         -----------------------
-        {reference_code} 
+        {reference_code}
      """)
 ])
 
@@ -147,9 +151,10 @@ def generate_code(path: str, code: str, references: list = []):
     file_name = path.split("/")[-1].split(".")[0]
     generated_references = {}
     for reference in references:
+        code = references[reference]
         print('generating reference code for: ', reference)
         reference_chain = prompt5 | llm | output_parser
-        generated_reference = reference_chain.invoke({"reference_code": reference, "component": generated_component_def, "api_path": f"/api/{file_name}"})
+        generated_reference = reference_chain.invoke({"reference_file": reference, "reference_code": code, "path": path, "component": generated_component_def, "api_path": f"/api/{file_name}"})
         generated_reference = extract_code_blocks(generated_reference)
         generated_references[reference] = generated_reference
         print(generated_reference)
