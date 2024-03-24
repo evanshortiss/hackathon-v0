@@ -224,11 +224,11 @@ def main():
     for filepath, content in file_contents.items():
         cur = generate_code(filepath, content)
         results.append(cur)
-        # for path, value in cur.items():
-        #     with open(f'./{path}', 'w') as file:
-        #         # Write the text to the file
-        #         print(f'writing:{path}')
-        #         file.write(value)
+        for path, value in cur.items():
+            with open(f'./{path}', 'w') as file:
+                # Write the text to the file
+                print(f'writing:{path}')
+                file.write(value)
 
     username, repo_name = extract_user_repo_from_url(forked_repo_url)
     create_git_branch(username, repo_name, GITHUB_TOKEN, 'v1')
