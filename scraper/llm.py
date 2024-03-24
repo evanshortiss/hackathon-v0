@@ -4,6 +4,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
 from prompts.refactor import code_generation_system_prompt
 from prompts.function import function_generation_system_prompt
+from prompts.reference import reference_refactor_system_prompt
 
 llm = ChatOpenAI(model="gpt-4")
 
@@ -72,6 +73,32 @@ prompt4 = ChatPromptTemplate.from_messages([
      """)
 ])
 
+prompt5 = ChatPromptTemplate.from_messages([
+    ("system", reference_refactor_system_prompt),
+    ("user", """
+        api-path
+        -----------------------
+        {api_path}
+
+        child component definition
+        -----------------------
+        {component}
+     
+        top-level component
+        -----------------------
+        {reference_code} 
+     """)
+])
+
+prompt6 = ChatPromptTemplate.from_messages([
+    ("system", "return the props the name of the React component and its props as a JSON object."),
+    ("user", """
+        React component
+        -----------------------
+        {component}
+     """)
+])
+
 json_parser = JsonOutputParser()
 output_parser = StrOutputParser()
 
@@ -86,7 +113,7 @@ def extract_code_blocks(text: str):
 
     return tag_excluded_code_block
 
-def generate_code(path: str, code: str):
+def generate_code(path: str, code: str, references: list = []):
     # create a dictionary
     print(f'generating code for: {path}')
     output = {}
@@ -95,30 +122,42 @@ def generate_code(path: str, code: str):
     generated_code = code_chain.invoke({"code": code, "language": "typescript"})
     generated_code = extract_code_blocks(generated_code)
     # print('generated JSX')
-    print(generated_code)
+    # print(generated_code)
     # print(extract_code_blocks(generated_code))
 
     sql_chain = prompt2 | llm | output_parser
     generated_sql = sql_chain.invoke({"generated_code": generated_code, "language": "sql"})
     generated_sql = extract_code_blocks(generated_sql)
-    print(generated_sql)
+    # print(generated_sql)
     # print(extract_code_blocks(generated_sql))
     # print('generated SQL')
 
     insert_chain = prompt3 | llm | output_parser
     generated_inserts = insert_chain.invoke({"static_code": code, "dynamic_code": generated_code, "create_table_statement": generated_sql})
     generated_inserts = extract_code_blocks(generated_inserts)
-    print(generated_inserts)
 
     function_chain = prompt4 | llm | output_parser
     generated_function = function_chain.invoke({"create_table_statement": generated_sql})
     generated_function = extract_code_blocks(generated_function)
-    print(generated_function)
-    # print('generated API Endpoint')
+
+    generated_component_chain = prompt6 | llm | output_parser
+    generated_component_def = generated_component_chain.invoke({"component": generated_code})
+    print(generated_component_def)
 
     file_name = path.split("/")[-1].split(".")[0]
-    output[f"api/get-{file_name}.tsx"] = generated_function
+    generated_references = {}
+    for reference in references:
+        print('generating reference code for: ', reference)
+        reference_chain = prompt5 | llm | output_parser
+        generated_reference = reference_chain.invoke({"reference_code": reference, "component": generated_component_def, "api_path": f"/api/{file_name}"})
+        generated_reference = extract_code_blocks(generated_reference)
+        generated_references[reference] = generated_reference
+        print(generated_reference)
+
+    output[f"src/app/api/{file_name}/route.ts"] = generated_function
     output[f"seed.sql"] = generated_sql + "" + generated_inserts
-    output[path] = generated_code
+    output[f'src/components/{path}'] = generated_code
+    for reference in references:
+        output[reference] = generated_references[reference]
 
     return output

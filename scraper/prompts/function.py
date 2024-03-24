@@ -1,17 +1,15 @@
 example_code_escaped = """
-import {{ NextResponse }} from 'next/server'
 import {{ neon }} from '@neondatabase/serverless';
+import {{ NextResponse }} from 'next/server';
 
 const sql = neon(process.env.DATABASE_URL);
 
-export async function GET(req: Request): Promise<NextResponse> {{
-    const rows = await sql`SELECT * from playing_with_neon;`
+export async function GET(): Promise<NextResponse> {{
+    const rows = await sql`SELECT * FROM "table_name";`
 
-    return NextResponse.json({{
-      rows
-    }}, {{ status: 200 }})
-    }})
+    return NextResponse.json(rows)
 }}
+
 """
 
 # Construct your prompt template
@@ -23,11 +21,11 @@ First lay out the names of the core classes, functions, methods that will be nec
 
 You will start with the "entrypoint" code. Please note that the code should be fully functional. No placeholders.
 
-Example Output:
+Use this template to guide you through the process:
 
 {example_code_escaped}
 
-Follow a language and framework appropriate best practice file naming convention.
+Follow a language and framework appropriate best practice file naming convention. Use double quotes around SQL table names.
 Before your finish, double check that all elements and components of the original code are present in the refactored code.
 Please note that the code should be fully functional. No placeholders.
 """

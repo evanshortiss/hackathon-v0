@@ -61,7 +61,7 @@ def find_component_usages(repo_path: str, component_names: List[str]) -> Dict[st
                         # Match component usage by checking for the component name without the .tsx extension
                         search_str = f'/components/{os.path.splitext(component)[0]}'  # Adjust based on how components are referenced in your project
                         if search_str in content:
-                            usage_dict[component].append(file_path[len(repo_path)+1:])  # Store relative path
+                            usage_dict[component].append(file_path[len(repo_path):])  # Store relative path
     return usage_dict
 
 def clone_repository(repo_path: str, tmp_dir: str):
@@ -197,10 +197,11 @@ def extract_user_repo_from_url(url):
 def create_git_and_checkout_branch(repo_path: str, branch_name: str = 'v1'):
     """
     Create a new git branch in the specified repository and checkout the branch.
+    If the branch already exists, continue and use the existing branch.
     :param repo_path: The path to the Git repository on the local system.
     :param branch_name: The name of the new branch to be created.
     """
-    subprocess.run(['git', '-C', repo_path, 'checkout', '-b', branch_name], check=True)
+    subprocess.run(['git', '-C', repo_path, 'checkout', '-b', branch_name], check=False)
 
 def main():
     parser = argparse.ArgumentParser(description='Clone a Git repository, find .tsx files in a specified directory, and list their usages.')
@@ -211,6 +212,7 @@ def main():
     
     # Find v0 components and references to the components in pages
     file_contents, file_usages, error = find_tsx_files_and_usages(args.repo_path, args.search_path)
+    print (f'{file_usages}')
 
     if error:
         print(error)
@@ -223,7 +225,7 @@ def main():
     # store them to create a PR with the changes
     results = []
     for filepath, content in file_contents.items():
-        cur = generate_code(filepath, content)
+        cur = generate_code(filepath, content, file_usages[filepath])
         results.append(cur)
         # get seed.sql from cur and execute the sql
         seed_sql = cur.get('seed.sql')
@@ -251,7 +253,8 @@ def main():
 
     
     # https://github.com/evanshortiss/hackathon-v0/compare/main...neon-v1-bot:hackathon-v0:v1?expand=1
-    print(f'\nVisit the following URL to preview and merge your changes: https://github.com/{extract_user_repo_from_url(args.repo_path)[0]}/{repo_name}/compare/main..{username}:{repo_name}:v1?expand=1')
+    username, repo_name = extract_user_repo_from_url(args.repo_path)
+    print(f'\nVisit the following URL to preview and merge your changes: https://github.com/{username}/{repo_name}/compare/main..{username}:{repo_name}:v1?expand=1')
 
 if __name__ == '__main__':
     main()
