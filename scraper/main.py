@@ -12,6 +12,7 @@ import argparse
 import requests
 import base64
 from llm import generate_code
+import psycopg2
 
 GITHUB_TOKEN = getenv('GITHUB_TOKEN')
 HEADERS = {'Authorization': f'token {GITHUB_TOKEN}'}
@@ -224,11 +225,25 @@ def main():
     for filepath, content in file_contents.items():
         cur = generate_code(filepath, content)
         results.append(cur)
+        # get seed.sql from cur and execute the sql
+        seed_sql = cur.get('seed.sql')
+        if seed_sql:
+            connection_string = os.getenv('DATABASE_URL')
+            connection = psycopg2.connect(connection_string)
+
+            cursor = connection.cursor()
+            cursor.execute(seed_sql)
+            connection.commit()
+
+            cursor.close()
+            connection.close()
+            print(f'Executing SQL for {filepath}')
+
         for path, value in cur.items():
-            with open(f'./{path}', 'w') as file:
-                # Write the text to the file
-                print(f'writing:{path}')
-                file.write(value)
+            if path != 'seed.sql':
+                with open(f'./{path}', 'w') as file:
+                    print(f'writing:{path}')
+                    file.write(value)
 
     username, repo_name = extract_user_repo_from_url(forked_repo_url)
     create_git_branch(username, repo_name, GITHUB_TOKEN, 'v1')
