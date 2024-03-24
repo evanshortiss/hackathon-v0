@@ -17,17 +17,17 @@ import psycopg2
 GITHUB_TOKEN = getenv('GITHUB_TOKEN')
 HEADERS = {'Authorization': f'token {GITHUB_TOKEN}'}
 
-def fork_repository(repo_url):
+def fork_repository(repo_path):
     """
     Forks the given repository to the authenticated user's GitHub account.
     """
-    owner, repo = repo_url.split('/')[-2:]
+    owner, repo = repo_path.split('/')[-2:]
     fork_url = f'https://api.github.com/repos/{owner}/{repo}/forks'
     response = requests.post(fork_url, headers=HEADERS)
     if response.status_code in [202, 200]:
-        forked_repo_url = response.json()['clone_url']
-        print(f"Repository forked successfully: {forked_repo_url}")
-        return forked_repo_url
+        forked_repo_path = response.json()['clone_url']
+        print(f"Repository forked successfully: {forked_repo_path}")
+        return forked_repo_path
     else:
         print(f"Failed to fork repository: {response.json()}")
         return None
@@ -64,14 +64,14 @@ def find_component_usages(repo_path: str, component_names: List[str]) -> Dict[st
                             usage_dict[component].append(file_path[len(repo_path)+1:])  # Store relative path
     return usage_dict
 
-def clone_repository(repo_url: str, tmp_dir: str):
+def clone_repository(repo_path: str, tmp_dir: str):
     """
     Clones a repository into a specified temporary directory.
-    :param repo_url: The Git repository URL to clone.
+    :param repo_path: The Git repository URL to clone.
     :param tmp_dir: The temporary directory where the repository will be cloned.
     """
     print(f"Cloning repository into {tmp_dir}")
-    subprocess.run(['git', 'clone', repo_url, tmp_dir], check=True)
+    subprocess.run(['git', 'clone', repo_path, tmp_dir], check=True)
 
 def find_tsx_files_and_usages(tmp_dir: str, search_path: str = 'src/components') -> Tuple[Dict[str, str], Dict[str, List[str]], str]:
     """
@@ -157,67 +157,67 @@ def extract_user_repo_from_url(url):
     return username, repo_name
 
 
-def create_git_branch(user, repo, token, new_branch_name, base_branch='main'):
+# def create_git_branch(user, repo, token, new_branch_name, base_branch='main'):
+#     """
+#     Create a new git branch in the specified repository.
+
+#     :param user: GitHub username or organization where the repo is hosted.
+#     :param repo: Repository name.
+#     :param token: Personal Access Token (PAT) for authentication with repo scope.
+#     :param new_branch_name: The name of the new branch to be created.
+#     :param base_branch: The name of the base branch from which to branch off.
+#     """
+#     repo_api_url = f'https://api.github.com/repos/{user}/{repo}'
+#     get_ref_url = f'{repo_api_url}/git/ref/heads/{base_branch}'
+#     create_ref_url = f'{repo_api_url}/git/refs'
+
+#     # Headers for authentication
+#     headers = {
+#         'Authorization': f'token {token}',
+#         'Accept': 'application/vnd.github.v3+json',
+#     }
+
+#     # Step 1: Get the SHA of the latest commit on the base branch
+#     response = requests.get(get_ref_url, headers=headers)
+#     if response.status_code != 200:
+#         raise Exception(f"Failed to fetch base branch SHA: {response.json()}")
+#     commit_sha = response.json()['object']['sha']
+
+#     # Step 2: Create a new branch by posting a new reference
+#     data = {
+#         'ref': f'refs/heads/{new_branch_name}',
+#         'sha': commit_sha
+#     }
+#     response = requests.post(create_ref_url, headers=headers, json=data)
+#     if response.status_code == 201:
+#         print(f"Branch '{new_branch_name}' created successfully.")
+#     else:
+#         raise Exception(f"Failed to create branch: {response.json()}")
+
+def create_git_and_checkout_branch(repo_path: str, branch_name: str = 'v1'):
     """
-    Create a new git branch in the specified repository.
-
-    :param user: GitHub username or organization where the repo is hosted.
-    :param repo: Repository name.
-    :param token: Personal Access Token (PAT) for authentication with repo scope.
-    :param new_branch_name: The name of the new branch to be created.
-    :param base_branch: The name of the base branch from which to branch off.
+    Create a new git branch in the specified repository and checkout the branch.
+    :param repo_path: The path to the Git repository on the local system.
+    :param branch_name: The name of the new branch to be created.
     """
-    repo_api_url = f'https://api.github.com/repos/{user}/{repo}'
-    get_ref_url = f'{repo_api_url}/git/ref/heads/{base_branch}'
-    create_ref_url = f'{repo_api_url}/git/refs'
-
-    # Headers for authentication
-    headers = {
-        'Authorization': f'token {token}',
-        'Accept': 'application/vnd.github.v3+json',
-    }
-
-    # Step 1: Get the SHA of the latest commit on the base branch
-    response = requests.get(get_ref_url, headers=headers)
-    if response.status_code != 200:
-        raise Exception(f"Failed to fetch base branch SHA: {response.json()}")
-    commit_sha = response.json()['object']['sha']
-
-    # Step 2: Create a new branch by posting a new reference
-    data = {
-        'ref': f'refs/heads/{new_branch_name}',
-        'sha': commit_sha
-    }
-    response = requests.post(create_ref_url, headers=headers, json=data)
-    if response.status_code == 201:
-        print(f"Branch '{new_branch_name}' created successfully.")
-    else:
-        raise Exception(f"Failed to create branch: {response.json()}")
-
+    subprocess.run(['git', '-C', repo_path, 'checkout', '-b', branch_name], check=True)
 
 def main():
     parser = argparse.ArgumentParser(description='Clone a Git repository, find .tsx files in a specified directory, and list their usages.')
-    parser.add_argument('repo_url', type=str, help='The URL of the Git repository to clone.')
+    parser.add_argument('repo_path', type=str, help='The path to the Git repository on this machine.')
     parser.add_argument('--search-path', type=str, default='src/components', help='Path to search for the components directory (relative to the repository root).')
 
     args = parser.parse_args()
-
-    # Fork the repo to v1 bot's account
-    forked_repo_url = fork_repository(args.repo_url)
-
-    # Clone the fork into a tmpdir
-    tmpdirname = tempfile.TemporaryDirectory().name
-    clone_repository(forked_repo_url, tmpdirname)
     
     # Find v0 components and references to the components in pages
-    file_contents, file_usages, error = find_tsx_files_and_usages(tmpdirname, args.search_path)
-    
-    # for filename, content in file_contents.items():
-    #     print(filename)
+    file_contents, file_usages, error = find_tsx_files_and_usages(args.repo_path, args.search_path)
 
     if error:
         print(error)
         exit(1)
+
+    # Create a new branch before making changes
+    create_git_and_checkout_branch(args.repo_path)
 
     # Pass files and references to Langchain/LLM and
     # store them to create a PR with the changes
@@ -241,20 +241,17 @@ def main():
 
         for path, value in cur.items():
             if path != 'seed.sql':
-                with open(f'./{path}', 'w') as file:
+                # write the file to the repo, creating missing paths
+                # if they do not exist
+                full_path = os.path.join(args.repo_path, path)
+                os.makedirs(os.path.dirname(full_path), exist_ok=True)
+                with open(full_path, 'w') as file:
                     print(f'writing:{path}')
                     file.write(value)
 
-    username, repo_name = extract_user_repo_from_url(forked_repo_url)
-    create_git_branch(username, repo_name, GITHUB_TOKEN, 'v1')
-    for entry in results:
-        for filepath, content in entry.items():
-            create_or_update_file(username, repo_name, filepath, GITHUB_TOKEN, content, f'v1 update/create {filepath}')
-
-
+    
     # https://github.com/evanshortiss/hackathon-v0/compare/main...neon-v1-bot:hackathon-v0:v1?expand=1
-    print(f'\nVisit the following URL to preview and merge your changes: https://github.com/{extract_user_repo_from_url(args.repo_url)[0]}/{repo_name}/compare/main..{username}:{repo_name}:v1?expand=1')
-
+    print(f'\nVisit the following URL to preview and merge your changes: https://github.com/{extract_user_repo_from_url(args.repo_path)[0]}/{repo_name}/compare/main..{username}:{repo_name}:v1?expand=1')
 
 if __name__ == '__main__':
     main()
