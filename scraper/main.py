@@ -1,15 +1,17 @@
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from urllib.parse import urlparse
 from typing import Dict, List, Tuple
 from os import getenv
-from dotenv import load_dotenv
 import subprocess
 import tempfile
 import os
 import argparse
 import requests
 import base64
-
-load_dotenv()
+from llm import generate_code
 
 GITHUB_TOKEN = getenv('GITHUB_TOKEN')
 HEADERS = {'Authorization': f'token {GITHUB_TOKEN}'}
@@ -38,24 +40,6 @@ def replace_file_contents(repo_path, file_contents_map):
         os.makedirs(os.path.dirname(full_path), exist_ok=True)
         with open(full_path, 'w', encoding='utf-8') as file:
             file.write(new_content)
-
-def create_pull_request(forked_repo_url, original_repo_url, branch_name='v1'):
-    """
-    Creates a pull request from the forked repository to the original repository.
-    """
-    owner, repo = original_repo_url.split('/')[-2:]
-    pr_url = f'https://api.github.com/repos/{owner}/{repo}/pulls'
-    data = {
-        'title': 'Automated Update',
-        'head': f"{forked_repo_url.split('/')[-2]}:{branch_name}",
-        'base': 'main',  # Change this if the base branch is different
-        'body': 'This is an automated pull request.',
-    }
-    response = requests.post(pr_url, headers=HEADERS, json=data)
-    if response.status_code == 201:
-        print(f"Pull request created successfully: {response.json()['html_url']}")
-    else:
-        print(f"Failed to create pull request: {response.json()}")
 
 
 def find_component_usages(repo_path: str, component_names: List[str]) -> Dict[str, List[str]]:
@@ -126,7 +110,7 @@ def create_or_update_file(user, repo, path, token, content, message, branch="v1"
     :param branch: Branch where the commit should be applied.
     """
     url = f"https://api.github.com/repos/{user}/{repo}/contents/{path}"
-    print(f'Create/update file {url}')
+
     headers = {
         "Authorization": f"token {token}",
         "Accept": "application/vnd.github.v3+json"
@@ -149,11 +133,11 @@ def create_or_update_file(user, repo, path, token, content, message, branch="v1"
 
     # Create or update the file
     response = requests.put(url, headers=headers, json=data)
-    if response.status_code in [200, 201]:
-        print(f"File {'created' if response.status_code == 201 else 'updated'} successfully.")
-        print("URL:", response.json()['content']['html_url'])
-    else:
+    if response.status_code not in [200, 201]:
         print("Failed to create or update the file:", response.json())
+    # else:
+        # print(f"File {'created' if response.status_code == 201 else 'updated'} successfully.")
+        # print("URL:", response.json()['content']['html_url'])
 
 def extract_user_repo_from_url(url):
     """
@@ -226,17 +210,36 @@ def main():
     
     # Find v0 components and references to the components in pages
     file_contents, file_usages, error = find_tsx_files_and_usages(tmpdirname, args.search_path)
+    
+    # for filename, content in file_contents.items():
+    #     print(filename)
 
     if error:
         print(error)
         exit(1)
 
-    # Pass files and references to Langchain/LLM
-    
+    # Pass files and references to Langchain/LLM and
+    # store them to create a PR with the changes
+    results = []
+    for filepath, content in file_contents.items():
+        cur = generate_code(filepath, content)
+        results.append(cur)
+        # for path, value in cur.items():
+        #     with open(f'./{path}', 'w') as file:
+        #         # Write the text to the file
+        #         print(f'writing:{path}')
+        #         file.write(value)
+
     username, repo_name = extract_user_repo_from_url(forked_repo_url)
     create_git_branch(username, repo_name, GITHUB_TOKEN, 'v1')
-    for filepath, content in test_file_contents.items():
-        create_or_update_file(username, repo_name, filepath, GITHUB_TOKEN, content, f'v1 update/create {filepath}')
+    for entry in results:
+        for filepath, content in entry.items():
+            create_or_update_file(username, repo_name, filepath, GITHUB_TOKEN, content, f'v1 update/create {filepath}')
+
+
+    # https://github.com/evanshortiss/hackathon-v0/compare/main...neon-v1-bot:hackathon-v0:v1?expand=1
+    print(f'\nVisit the following URL to preview and merge your changes: https://github.com/{extract_user_repo_from_url(args.repo_url)[0]}/{repo_name}/compare/main..{username}:{repo_name}:v1?expand=1')
+
 
 if __name__ == '__main__':
     main()
