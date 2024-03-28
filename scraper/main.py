@@ -6,7 +6,6 @@ from urllib.parse import urlparse
 from typing import Dict, List, Tuple
 from os import getenv
 import subprocess
-import tempfile
 import os
 import argparse
 import requests
@@ -228,18 +227,18 @@ def main():
         cur = generate_code(filepath, content, file_usages[filepath])
         results.append(cur)
         # get seed.sql from cur and execute the sql
-        # seed_sql = cur.get('seed.sql')
-        # if seed_sql:
-        #     connection_string = os.getenv('DATABASE_URL')
-        #     connection = psycopg2.connect(connection_string)
+        seed_sql = cur.get('seed.sql')
+        if seed_sql:
+            print(f'Executing SQL for {filepath}')
+            connection_string = os.getenv('DATABASE_URL')
+            connection = psycopg2.connect(connection_string)
 
-        #     cursor = connection.cursor()
-        #     cursor.execute(seed_sql)
-        #     connection.commit()
+            cursor = connection.cursor()
+            cursor.execute(seed_sql)
+            connection.commit()
 
-        #     cursor.close()
-        #     connection.close()
-        #     print(f'Executing SQL for {filepath}')
+            cursor.close()
+            connection.close()
 
         for path, value in cur.items():
             if path != 'seed.sql':
@@ -253,8 +252,8 @@ def main():
 
     
     # https://github.com/evanshortiss/hackathon-v0/compare/main...neon-v1-bot:hackathon-v0:v1?expand=1
-    username, repo_name = extract_user_repo_from_url(args.repo_path)
-    print(f'\nVisit the following URL to preview and merge your changes: https://github.com/{username}/{repo_name}/compare/main..{username}:{repo_name}:v1?expand=1')
+    # username, repo_name = extract_user_repo_from_url(args.repo_path)
+    # print(f'\nVisit the following URL to preview and merge your changes: https://github.com/{username}/{repo_name}/compare/main..{username}:{repo_name}:v1?expand=1')
 
 if __name__ == '__main__':
     main()

@@ -107,6 +107,7 @@ json_parser = JsonOutputParser()
 output_parser = StrOutputParser()
 
 def extract_code_blocks(text: str):
+    # print (f'extracting code blocks from: {text}')
     pattern = r"```(?:\w+)?\n(.*?)\n```"
     match_tag_excluded = re.search(pattern, text, re.DOTALL)
 
@@ -146,7 +147,7 @@ def generate_code(path: str, code: str, references: list = []):
 
     generated_component_chain = prompt6 | llm | output_parser
     generated_component_def = generated_component_chain.invoke({"component": generated_code})
-    print(generated_component_def)
+    # print(generated_component_def)
 
     file_name = path.split("/")[-1].split(".")[0]
     generated_references = {}
@@ -157,7 +158,7 @@ def generate_code(path: str, code: str, references: list = []):
         generated_reference = reference_chain.invoke({"reference_file": reference, "reference_code": code, "path": path, "component": generated_component_def, "api_path": f"/api/{file_name}"})
         generated_reference = extract_code_blocks(generated_reference)
         generated_references[reference] = generated_reference
-        print(generated_reference)
+        # print(generated_reference)
 
     output[f"src/app/api/{file_name}/route.ts"] = generated_function
     output[f"seed.sql"] = generated_sql + "" + generated_inserts
